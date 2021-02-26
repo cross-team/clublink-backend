@@ -1,0 +1,67 @@
+package authorizer
+
+import (
+	"testing"
+
+	"github.com/cross-team/clublink-backend/app/entity"
+	"github.com/cross-team/clublink-backend/app/usecase/authorizer/rbac"
+	"github.com/cross-team/clublink-backend/app/usecase/authorizer/rbac/role"
+	"github.com/cross-team/clublink-backend/app/usecase/repository"
+	"github.com/short-d/app/fw/assert"
+)
+
+func TestAuthorizer_hasPermission(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name     string
+		roles    map[string][]role.Role
+		user     entity.User
+		hasRight bool
+	}{
+		{
+			name: "permission denied",
+			roles: map[string][]role.Role{
+				"id": {role.Basic},
+			},
+			user: entity.User{
+				ID: "id",
+			},
+			hasRight: false,
+		},
+		{
+			name: "permission granted",
+			roles: map[string][]role.Role{
+				"id": {role.Admin},
+			},
+			user: entity.User{
+				ID: "id",
+			},
+			hasRight: true,
+		},
+		{
+			name: "multiple roles grant the permission",
+			roles: map[string][]role.Role{
+				"id": {role.Basic, role.Admin},
+			},
+			user: entity.User{
+				ID: "id",
+			},
+			hasRight: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			fakeRolesRepo := repository.NewUserRoleFake(testCase.roles)
+			ac := rbac.NewRBAC(fakeRolesRepo)
+			authorizer := NewAuthorizer(ac)
+
+			canChange, err := authorizer.CanCreateChange(testCase.user)
+			assert.Equal(t, nil, err)
+
+			assert.Equal(t, testCase.hasRight, canChange)
+		})
+	}
+}
